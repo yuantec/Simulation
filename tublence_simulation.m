@@ -129,15 +129,12 @@ xn2 = linspace(-N/2, N/2-1, N) * delta_layer;  % 创建坐标网格
 % --- 计算每个点到中心的径向距离 ---  
 r_mat = sqrt(X2.^2 + Y2.^2);
 
-% --- 定义掩膜 mask2 ---  
-mask2 = circ(X2/D2, Y2/D2, 1);  % 生成孔径掩膜
-
 % --- 计算结构函数 ---
 Dsum2D = zeros(N, N);
 for k = 1:nreals
     [phz_lo, phz_hi] = ft_sh_phase_screen(r0_layer, N, delta_layer, L0, l0);
     PS = phz_lo + phz_hi;
-    Dk = str_fcn2_ft(PS, mask2, delta_layer);  
+    Dk = str_fcn2_ft(PS, mask, delta_layer);  
     Dsum2D = Dsum2D + Dk;  
 end
 Demp2D = Dsum2D / nreals;
@@ -149,20 +146,20 @@ r_phys = (0:maxLag) * delta_layer;
 
 for d = 0:maxLag
     ring = (r_mat >= d * delta_layer) & (r_mat < (d + 1) * delta_layer);  
-    idx = mask2 & ring;
+    idx = mask & ring;
     if any(idx, 'all')
         emp1D(d + 1) = mean(Demp2D(idx));
     end
 end
 
 % --- 理论结构函数 ---
-Dth = 6.88 * (r_phys / r0_layer).^(5 / 3);
+Dth = 6.88 * (r_phys / r0sw).^(5 / 3);
 
 % --- 绘图 ---
-figure;
-plot(r_phys / r0_layer, emp1D, 'bo-', 'DisplayName', '仿真');  
+figure(3);
+plot(r_phys / r0sw, emp1D, 'bo-', 'DisplayName', '仿真');  
 hold on;  
-plot(r_phys / r0_layer, Dth, 'r-', 'LineWidth', 1.5, 'DisplayName', '理论');
+plot(r_phys / r0sw, Dth, 'r-', 'LineWidth', 1.5, 'DisplayName', '理论');
 xlabel('|\Delta r|/r_0');  
 ylabel('D_\phi(\Delta r) [rad^2]');  
 legend('Location', 'northwest');  
@@ -170,3 +167,36 @@ grid on;
 xlim([0, 12]);  
 ylim([0, max(Dth) * 1.1]);  
 title('结构函数验证');
+
+%% 相干因子验证
+
+maxLag = floor(N/2);
+delta_layer = delta(end);     % 最后观测面采样间隔
+% 构建物理坐标矩阵
+coords = ((-N/2:N/2-1)*delta_layer);
+[X, Y] = meshgrid(coords, coords);
+R = sqrt(X.^2 + Y.^2);
+
+% 径向平均
+emp_rho = 0:maxLag;
+emp_gamma = zeros(size(emp_rho));
+for d = emp_rho
+  ring = (R >= d*delta_layer) & (R < (d+1)*delta_layer) & mask;
+  emp_gamma(d+1) = mean(MCDOC2(ring),'all');
+end
+rho = emp_rho * delta_layer / r0sw;    % 归一化滞后
+
+% 理论相干因子
+gamma_th = exp(-3.44 * (rho).^ (5/3));  % 或根据你的点源用合适系数
+
+figure(4); clf;
+plot(rho, emp_gamma, 'bo-', 'DisplayName','仿真');
+hold on;
+plot(rho, gamma_th,'r-','LineWidth',1.5,'DisplayName','理论');
+hold off;
+xlabel('r/r_0');
+ylabel('相干因子 \gamma');
+legend('Location','northeast');
+grid on;
+xlim([0,1.5]);
+title('观测平面中相干因子：理论 vs 仿真');
