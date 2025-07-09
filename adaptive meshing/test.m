@@ -15,7 +15,7 @@ n = nscr;                           % 相位屏数量
 [pts, TR] = generate_Fibonacci_mesh(N, radius);
 
 % 可视化网格
-figure;
+figure(1);
 triplot(TR);
 axis equal;
 title('初始 Fibonacci Delaunay 网格');
@@ -37,7 +37,7 @@ w0 = 0.02;               % 束腰 2 cm
 U0 = Gaussian_Beam(pts, w0, z0, k);
 
 I0 = abs(U0).^2;
-figure;
+figure(2);
 trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I0, 'EdgeColor','none');
 view(2); shading interp; axis equal; colorbar;
 title('初始高斯光束辐照度分布');
@@ -61,8 +61,10 @@ for step = 1:n
     U0 = propagate_HalfStep(U0, Phi, Lambda, dz, k);
 end
 
+I1 = abs(U0).^2;
+
 % 可视化结果
-figure;
-scatter(pts(:,1), pts(:,2), 15, abs(U0).^2,'filled');
-axis equal; colorbar;
-title('真空传播后辐照度分布');
+figure(3);
+trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I1, 'EdgeColor','none');
+view(2); shading interp; axis equal; colorbar;
+title('传播后高斯光束辐照度分布');
