@@ -43,5 +43,5 @@ function U0 = Gaussian_Beam(pts, w0, z, k)
   gouyPhase = exp(1i * PhiG);
   
   % 合成初始场
-  U0 = amp .* quadPhase * gouyPhase;
+  U0 = amp .* quadPhase .* gouyPhase;
 end
