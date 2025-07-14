@@ -11,6 +11,6 @@
         % 合成频谱系数
         cn = (randn(N) + 1i*randn(N)) .* sqrt(PSD_phi) * del_f;
         % 相位屏生成
-        % phz = real(ift2(cn,1));                  %可能是错的，所以改了一下
-        phz = real(ift2(cn, del_f));           %这个用了误差大   
+        phz = real(ift2(cn,1));                  %可能是错的，所以改了一下(原版)
+        % phz = real(ift2(cn, del_f));           %这个用了误差大   
 
