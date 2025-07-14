@@ -118,85 +118,135 @@ xlabel('2x/D_2');
 ylabel('2y/D_2'); 
 title('(b) 相位分布'); 
 
-%% 验证
+%% 结构函数验证
 testLayer = round(scr_count/2); 
 r0_layer = r0scrn(testLayer); 
 delta_layer = delta(testLayer); 
 
-xn2 = linspace(-N/2, N/2-1, N) * delta_layer;  % 创建坐标网格
+xn2 = linspace(-N/2, N/2-1, N) * delta_layer;   % 创建坐标网格
+yn2 = xn2;
 [X2, Y2] = meshgrid(xn2);                       % 生成二维网格坐标
 
-% --- 计算每个点到中心的径向距离 ---  
-r_mat = sqrt(X2.^2 + Y2.^2);
+structure_fcn = @(phz, N) (sum((phz(:,2:N)-phz(:,1)).^2, 1)...
+            +sum((phz(:,N-1:-1:1)-phz(:,N)).^2, 1)...
+            +sum((phz(2:N,:)-phz(1,:)).^2, 2)'...
+            +sum((phz(N-1:-1:1,:)-phz(N,:)).^2, 2)')/(N-1)/4;
+NUM = 100;
+SF_sh = zeros(1,N-1);
+SF_hi = SF_sh;
 
-% --- 计算结构函数 ---
-Dsum2D = zeros(N, N);
-for k = 1:nreals
+for nn = 1:NUM
     [phz_lo, phz_hi] = ft_sh_phase_screen(r0_layer, N, delta_layer, L0, l0);
-    PS = phz_lo + phz_hi;
-    Dk = str_fcn2_ft(PS, mask, delta_layer);  
-    Dsum2D = Dsum2D + Dk;  
-end
-Demp2D = Dsum2D / nreals;
+    phz = phz_lo + phz_hi;
 
-% --- 计算径向平均 ---
-maxLag = floor(N / 2);  
-emp1D = zeros(1, maxLag+1);  
-r_phys = (0:maxLag) * delta_layer;  
-
-for d = 0:maxLag
-    ring = (r_mat >= d * delta_layer) & (r_mat < (d + 1) * delta_layer);  
-    idx = mask & ring;
-    if any(idx, 'all')
-        emp1D(d + 1) = mean(Demp2D(idx));
-    end
+    SF_sh = SF_sh + structure_fcn(phz, N);
+    SF_hi = SF_hi + structure_fcn(phz_hi,N);
 end
 
-% --- 理论结构函数 ---
-Dth = 6.88 * (r_phys / r0sw).^(5 / 3);
-
-% --- 绘图 ---
-figure(3);
-plot(r_phys / r0sw, emp1D, 'bo-', 'DisplayName', '仿真');  
-hold on;  
-plot(r_phys / r0sw, Dth, 'r-', 'LineWidth', 1.5, 'DisplayName', '理论');
-xlabel('|\Delta r|/r_0');  
-ylabel('D_\phi(\Delta r) [rad^2]');  
-legend('Location', 'northwest');  
-grid on;  
-xlim([0, 12]);  
-ylim([0, max(Dth) * 1.1]);  
-title('结构函数验证');
+D_r = (0:N-2)*delta_layer;
+plot(D_r/r0_layer,SF_sh/NUM)
+hold on
+plot(D_r/r0_layer,SF_hi/NUM)
+plot(D_r/r0_layer, 6.88*(D_r/r0_layer).^(5/3))
+xlim([0,12])
+ylim([0,500])
+legend('加次谐波','无次谐波','理论值')
+xlabel('$|\Delta\textbf{r}|/{\it{r}}_0$', 'Interpreter', 'latex');
+ylabel('$D_{\phi}(\Delta\textbf{r}) [\textbf{rad}^2]$', 'Interpreter', 'latex');
 
 %% 相干因子验证
+% 
+% maxLag = floor(N/2);
+% delta_layer = delta(end);     % 最后观测面采样间隔
+% % 构建物理坐标矩阵
+% coords = ((-N/2:N/2-1)*delta_layer);
+% [X, Y] = meshgrid(coords, coords);
+% R = sqrt(X.^2 + Y.^2);
+% 
+% % 径向平均
+% emp_rho = 0:maxLag;
+% emp_gamma = zeros(size(emp_rho));
+% for d = emp_rho
+%   ring = (R >= d*delta_layer) & (R < (d+1)*delta_layer) & mask;
+%   emp_gamma(d+1) = mean(MCDOC2(ring),'all');
+% end
+% rho = emp_rho * delta_layer / r0sw;    % 归一化滞后
+% 
+% % 理论相干因子
+% gamma_th = exp(-3.44 * (rho).^ (5/3));  % 或根据你的点源用合适系数
+% 
+% figure(4); clf;
+% plot(rho, emp_gamma, 'bo-', 'DisplayName','仿真');
+% hold on;
+% plot(rho, gamma_th,'r-','LineWidth',1.5,'DisplayName','理论');
+% hold off;
+% xlabel('r/r_0');
+% ylabel('相干因子 \gamma');
+% legend('Location','northeast');
+% grid on;
+% xlim([0,1.5]);
+% title('观测平面中相干因子：理论 vs 仿真');
 
-maxLag = floor(N/2);
-delta_layer = delta(end);     % 最后观测面采样间隔
-% 构建物理坐标矩阵
-coords = ((-N/2:N/2-1)*delta_layer);
-[X, Y] = meshgrid(coords, coords);
-R = sqrt(X.^2 + Y.^2);
-
-% 径向平均
-emp_rho = 0:maxLag;
-emp_gamma = zeros(size(emp_rho));
-for d = emp_rho
-  ring = (R >= d*delta_layer) & (R < (d+1)*delta_layer) & mask;
-  emp_gamma(d+1) = mean(MCDOC2(ring),'all');
-end
-rho = emp_rho * delta_layer / r0sw;    % 归一化滞后
-
-% 理论相干因子
-gamma_th = exp(-3.44 * (rho).^ (5/3));  % 或根据你的点源用合适系数
-
-figure(4); clf;
-plot(rho, emp_gamma, 'bo-', 'DisplayName','仿真');
-hold on;
-plot(rho, gamma_th,'r-','LineWidth',1.5,'DisplayName','理论');
-hold off;
-xlabel('r/r_0');
-ylabel('相干因子 \gamma');
-legend('Location','northeast');
-grid on;
-xlim([0,1.5]);
-title('观测平面中相干因子：理论 vs 仿真');
+% % 使用径向分箱方法计算相干因子
+% ic = N/2+1; jc = N/2+1;  % 中心点坐标
+% 
+% % 计算每个点到中心点的距离（单位：米）
+% dist_mat = sqrt((xn - xn(ic,jc)).^2 + (yn - yn(ic,jc)).^2);
+% 
+% % 设置径向分箱参数
+% maxR = D2/2;          % 最大分析距离（孔径半径）
+% dr = deltan;           % 径向分箱步长（与采样间距相同）
+% rbins = 0:dr:maxR;     % 径向分箱边界
+% rbins_center = (rbins(1:end-1) + rbins(2:end))/2;  % 分箱中心位置
+% num_bins = length(rbins)-1;
+% 
+% % 初始化相干因子存储数组
+% coherence_factor = zeros(1, num_bins);
+% count = zeros(1, num_bins);
+% 
+% % 遍历所有有效点（掩膜内）
+% for i = 1:N
+%     for j = 1:N
+%         if mask(i,j) == 1  % 只在有效区域内计算
+%             r = dist_mat(i,j);
+%             if r <= maxR
+%                 % 确定所属径向分箱
+%                 bin_idx = floor(r/dr) + 1;
+%                 if bin_idx <= num_bins
+%                     coherence_factor(bin_idx) = coherence_factor(bin_idx) + MCDOC2(i,j);
+%                     count(bin_idx) = count(bin_idx) + 1;
+%                 end
+%             end
+%         end
+%     end
+% end
+% 
+% % 计算平均相干因子
+% coherence_factor = coherence_factor ./ max(count, 1);  % 避免除以零
+% 
+% % 理论相干因子模型 (球面波传播)
+% gamma_theory_radial = exp(-3.44 * (rbins_center / r0sw).^(5/3));
+% 
+% % 绘制相干因子
+% figure('Position', [100 100 800 600], 'Color', 'w', 'Name', '径向平均相干因子');
+% plot(rbins_center/r0sw, coherence_factor, 'b--', 'LineWidth', 2, 'DisplayName', '仿真');
+% hold on;
+% plot(rbins_center/r0sw, gamma_theory_radial, 'r-', 'LineWidth', 2, 'DisplayName', '理论');
+% hold off;
+% 
+% xlim([0 1.5]);
+% ylim([0 1.0]);
+% 
+% % 添加标签和标题
+% xlabel('\rho / r_0', 'FontSize', 14, 'Interpreter', 'tex');
+% ylabel('相干因子', 'FontSize', 14);
+% title('观察平面中的相干因子（径向平均）', 'FontSize', 16);
+% 
+% % 添加图例
+% legend('Location', 'northeast', 'FontSize', 12);
+% 
+% 
+% 
+% % 添加网格
+% grid on;
+% box on;
