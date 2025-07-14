@@ -48,6 +48,7 @@ L_C = cotangent_Graph_Laplacian(pts, TR);
 assert(issymmetric(L_C), 'Laplacian 矩阵不对称');
 eigs_vals = eigs(L_C,1,'smallestabs');
 assert(eigs_vals >= -1e-10, 'Laplacian 存在负特征值');
+assert(all(abs(sum(L,2))<1e-10),'每行和必须为零');
 
 % 特征分解
 opts.issym = true;
