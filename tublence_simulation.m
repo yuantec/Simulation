@@ -99,7 +99,7 @@ colormap(gray);
 cbar = colorbar; 
 cbar.Label.String = '辐照度 (W/m^2)'; 
 % 根据最大值微调 caxis：示意图中上限约 400，可按需调整 
-caxis([0, max(Ivac(:))]); 
+clim([0, max(Ivac(:))]); 
 xlabel('2x/D_2'); 
 ylabel('2y/D_2'); 
 title('(a) 辐照度分布'); 
@@ -113,7 +113,7 @@ colormap(gray);
 cbar = colorbar; 
 cbar.Label.String = '相位 (rad)'; 
 % 将相位限制在 ±π 
-caxis([-2, 2]); 
+clim([-2, 2]); 
 xlabel('2x/D_2'); 
 ylabel('2y/D_2'); 
 title('(b) 相位分布'); 
@@ -142,7 +142,7 @@ for nn = 1:NUM
     SF_sh = SF_sh + structure_fcn(phz, N);
     SF_hi = SF_hi + structure_fcn(phz_hi,N);
 end
-
+figure(3); clf; 
 D_r = (0:N-2)*delta_layer;
 plot(D_r/r0_layer,SF_sh/NUM)
 hold on
