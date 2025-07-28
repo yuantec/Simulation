@@ -83,3 +83,6 @@ figure(3);
 trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I_turb, 'EdgeColor','none');
 view(2); shading interp; axis equal; colorbar;
 title('含湍流传播后高斯光束辐照度分布');
+
+
+%% 相位屏验证
