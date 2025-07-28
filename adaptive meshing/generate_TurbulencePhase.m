@@ -1,4 +1,4 @@
-function S = generateTurbulencePhase(pts, rc, alpha, M)
+function S = generate_TurbulencePhase(pts, rc, alpha, M)
 % GENERATETURBULENCEPHASE 基于 Karhunen–Loève 展开生成湍流相位屏
 %   S = generateTurbulencePhase(pts, rc, alpha, M)
 %   输入:
