@@ -75,7 +75,7 @@ for step = 1:n
     % —— 后半步衍射 —— 
     U = propagate_HalfStep(U, Phi, Lambda, dz, k);
 end
-I3 = abs(U).^2;
+I_turb = abs(U).^2;
 
 %% 绘制含湍流传播后辐照度
 
