@@ -81,7 +81,7 @@ r0scrn = X.^(-3/5);
 r0scrn(isinf(r0scrn)) = 1e6; 
 
 %% 生成湍流协方差拉普拉斯矩阵
-U = propagate_HalfStep(U0, Phi, Lambda, dz/2, k); % 初始半步
+U = propagate_HalfStep(U0, Phi, Lambda, Dz/2, k); % 初始半步
 
 M_turb = 100;  % 取前 M 模式
 nreals = 40;
@@ -100,7 +100,7 @@ for idxreal = 1:nreals
         U = U .* exp(1i * S);
 
         % 整步传播
-        U = propagate_FullStep(U, Phi, Lambda, dz, k);
+        U = propagate_FullStep(U, Phi, Lambda, Dz, k);
 
         % 自适应网格更新（每2步）
         if mod(idxscr,2) == 0
