@@ -81,39 +81,65 @@ r0scrn = X.^(-3/5);
 r0scrn(isinf(r0scrn)) = 1e6; 
 
 %% 生成湍流协方差拉普拉斯矩阵
-U = propagate_HalfStep(U0, Phi, Lambda, Dz/2, k); % 初始半步
+% 预先定义
+M_turb = 100;                            % KL 模式数量
+dz = Dz / scr_count;                     % 每段距离
+opts.issym = true;
 
-M_turb = 100;  % 取前 M 模式
-nreals = 40;
+% 初始半步衍射
+U = propagate_HalfStep(U0, Phi, Lambda, dz/2, k);
+
 for idxreal = 1:nreals
-    U = U0;                     % 初始场
-    for idxscr = 1:n 
-        % 湍流相位生成（修正后）
-        if idxscr == 1 || r0scrn(idxscr) ~= r0scrn(idxscr-1)
-            L_G = construct_Covariance_Laplacian(pts, r0scrn(idxscr), alpha);
-            [Psi, Sigma] = eigs(L_G, M_turb, 'largestabs');
+    % 重置场为初始半步后状态
+    U_current = U;
+
+    for idxscr = 1:scr_count
+        %% —— 湍流相位屏 （KL展） —— 
+        % 如果是首层或 Fried 半径变了，就重算协方差拉普拉斯与谱模态
+        if idxscr==1 || r0scrn(idxscr)~=r0scrn(idxscr-1)
+            % 协方差拉普拉斯
+            L_G = constructCovarianceLaplacian(pts, r0scrn(idxscr), alpha);
+            % 取最小特征值对应的模式（长尺度模态）
+            [PsiG, SigmaG] = eigs(L_G, M_turb, 'smallestabs', opts);
         end
-        s_n = sqrt(diag(Sigma)/2) .* (randn(M_turb,1) + 1i*randn(M_turb,1));
-        S = Psi * s_n;
+        % KL 随机系数，复数形式
+        sigma_n = sqrt(diag(SigmaG)/2);
+        s_n = sigma_n .* (randn(M_turb,1) + 1i*randn(M_turb,1));
+        phi = real(PsiG * s_n);
 
-        % 应用湍流相位
-        U = U .* exp(1i * S);
+        % —— 幅度按结构函数缩放 —— 
+        % 论文结构函数 D_phi(r)=6.88*(r/r0)^(5/3)
+        % 对应相位谱强度按 (6.88)^(1/2)*(dz/r0)^(5/6)
+        scale_factor = sqrt(6.88) * (dz / r0scrn(idxscr))^(5/6);
+        phi = phi * scale_factor;
 
-        % 整步传播
-        U = propagate_FullStep(U, Phi, Lambda, Dz, k);
+        %% —— 分裂步进 —— 
+        % 前半步已经完成在循环外
 
-        % 自适应网格更新（每2步）
-        if mod(idxscr,2) == 0
-            [pts, TR] = adaptive_remeshing(pts, U, 30, 1, -30); % θ_max=30°, K=-30dB
+        % 叠加湍流相位
+        U_current = U_current .* exp(1i * phi);
+
+        % 后半步衍射
+        U_current = propagate_HalfStep(U_current, Phi, Lambda, dz/2, k);
+
+        %% —— 自适应网格（每2层一次） —— 
+        if mod(idxscr,2)==0
+            % 重构网格
+            [pts, TR] = adaptive_remeshing(pts, U_current, 30, 1, -30);
+            % 重建传播图拉普拉斯与算子
             L_C = cotangent_Graph_Laplacian(pts, TR);
-            [Phi, Lambda] = eigs(L_C, size(pts,1), 'smallestabs');
+            [Phi, Lambda] = eigs(L_C, size(pts,1), 'smallestabs', opts);
+            % 清除湍流模态缓存，以便下一层重算 L_G
+            clear PsiG SigmaG L_G
         end
-    end
-end 
 
-%% 可视化
-I = abs(U).^2;
-figure(3);
-trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I0, 'EdgeColor','none');
-view(2); shading interp; axis equal; colorbar;
-title('湍流光高斯光束辐照度分布');
+        % 保存每层后场（可视化或后处理）
+        U_layers{idxreal, idxscr} = U_current;
+    end
+
+    % 最终场
+    U_layers{idxreal, scr_count+1} = U_current;
+
+    % 误差计算
+    epsilon(idxreal) = compute_error(pts, TR, U_current);
+end
