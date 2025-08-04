@@ -1,3 +1,4 @@
+%% 生成湍流相位屏函数
 function S = generate_TurbulencePhase(pts, rc, alpha, M)
 % GENERATETURBULENCEPHASE 基于 Karhunen–Loève 展开生成湍流相位屏
 %   S = generateTurbulencePhase(pts, rc, alpha, M)
@@ -14,7 +15,8 @@ function S = generate_TurbulencePhase(pts, rc, alpha, M)
     Dmat = squareform(pdist(pts));
 
     % 2) 构造协方差权重 WΓ = Γs(r1,r2) = (|Δr|/rc)^alpha
-    W = (Dmat / rc) .^ alpha;
+    % 根据Kolmogorov模型用指数衰减近似协方差
+    W = exp(-(Dmat / rc) .^ alpha);
     W(1:N+1:end) = 0;  % 对角置零
 
     % 3) 构造协方差拉普拉斯 L_G = Dg - W
