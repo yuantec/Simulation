@@ -10,8 +10,7 @@ N = 512;                            % 顶点数量
 d1 = 10e-3;                         % 源面采样间距 (m)
 d2 = 10e-3;                         % 观测面采样间距 (m)
 radius = (N*d1)/sqrt(pi);           % 圆盘半径 ≈ (N d1)/√π
-nscr = 11;
-n = nscr;                           % 相位屏数量
+
 [pts, TR] = generate_Fibonacci_mesh(N, radius);
 
 % 可视化网格
@@ -41,6 +40,7 @@ figure(2);
 trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I0, 'EdgeColor','none');
 view(2); shading interp; axis equal; colorbar;
 title('初始高斯光束辐照度分布');
+
 %% 生成初始图拉普拉斯矩阵
 L_C = cotangent_Graph_Laplacian(pts, TR);
 
@@ -54,35 +54,57 @@ assert(all(abs(sum(L_C,2))<1e-10),'每行和必须为零');
 opts.issym = true;
 [Phi, Lambda] = eigs(L_C, N, 'smallestabs', opts);
 
+%% 湍流相关物理量
+alpha = 5/3;                  % Kolmogorov 指数
+Cn2   = 1e-16;         % 湍流结构常数
+r0sw = (0.423*k^2*Cn2*3/8*Dz)^(-3/5);   % 平面波 Fried 参量 
+r0pw = (0.423*k^2*Cn2*Dz)^(-3/5);       % 球面波 Fried 参量
+p = linspace(0,Dz,1e3); 
+rytov = 0.563*k^(7/6)*sum(Cn2*(1-p/Dz).^(5/6).*p.^(5/6)*(p(2)-p(1))); 
 
-%% 湍流参数
-rc = 0.15;    % 相干半径 (m)
-alpha  = 5/3;     % Kolmogorov 指数
-M_turb = 100;     % 使用前 100 个特征模式
+%% 优化求解各相位屏r0scrn
+scr_count = 11;       % 相位屏数量 
+n = scr_count; 
+A = zeros(2,n); 
+alpha_vec = (0:n-1)/(n-1); 
+A(1,:) = alpha_vec.^(5/3); 
+A(2,:) = (1-alpha_vec).^(5/6).*alpha_vec.^(5/6); 
+b = [r0sw^(-5/3); rytov/1.33*(k/Dz)^(5/6)]; 
+x0 = (n/3*r0sw*ones(n,1)).^(-5/3); 
+x1 = zeros(n,1); 
+rmax = 0.1; 
+x2 = rmax/1.33*(k/Dz)^(5/6)./A(2,:); 
+x2(A(2,:)==0) = 50^(-5/3); 
+opts = optimoptions('fmincon','Display','none'); 
+[X,~,~,~] = fmincon(@(X) sum((A*X - b).^2), x0, [],[],[],[], x1, x2, [], opts); 
+r0scrn = X.^(-3/5); 
+r0scrn(isinf(r0scrn)) = 1e6; 
 
-%% 含湍流的分裂步进传播
-dz = Dz / n;      % 分段距离
-U  = U0;          % 从初始场开始
+%% 生成湍流协方差拉普拉斯矩阵
+M_turb = 100;  % 取前 M 模式
+nreals = 40;
+for idxreal = 1:nreals
+    U = U0;                     % 初始场
+    for idxscr = 1:1:n 
+        L_G = construct_Covariance_Laplacian(pts, r0scrn(idxscr), alpha);
+        % 特征分解
+        opts.issym = true;
+        [Psi, Sigma] = eigs(L_G, M_turb, 'smallestabs', opts);
+        % KL 生成相位屏
+        s_n = sqrt(diag(Sigma)) .* randn(M_turb,1);
+        S = Psi * s_n;
+        % 分裂步进——前半步衍射
+        U = propagate_HalfStep(U, Phi, Lambda, dz, k);
+        % 叠加湍流相位
+        U = U .* exp(1i * S);
+        % 分裂步进——后半步衍射
+        U = propagate_HalfStep(U, Phi, Lambda, dz, k);
+    end 
+end 
 
-for step = 1:n
-    % —— 前半步衍射 —— 
-    U = propagate_HalfStep(U, Phi, Lambda, dz, k);
-    
-    % —— 本步湍流相位屏 —— 
-    S = generate_TurbulencePhase(pts, rc, alpha, M_turb);
-    U = U .* exp(1i * S);
-    
-    % —— 后半步衍射 —— 
-    U = propagate_HalfStep(U, Phi, Lambda, dz, k);
-end
-I_turb = abs(U).^2;
-
-%% 绘制含湍流传播后辐照度
-
+%% 可视化
+I = abs(U).^2;
 figure(3);
-trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I_turb, 'EdgeColor','none');
+trisurf(TR.ConnectivityList, pts(:,1), pts(:,2), I0, 'EdgeColor','none');
 view(2); shading interp; axis equal; colorbar;
-title('含湍流传播后高斯光束辐照度分布');
-
-
-%% 相位屏验证
+title('湍流光高斯光束辐照度分布');
