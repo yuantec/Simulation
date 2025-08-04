@@ -81,25 +81,34 @@ r0scrn = X.^(-3/5);
 r0scrn(isinf(r0scrn)) = 1e6; 
 
 %% 生成湍流协方差拉普拉斯矩阵
+U = propagate_HalfStep(U0, Phi, Lambda, dz/2, k); % 初始半步
+
 M_turb = 100;  % 取前 M 模式
 nreals = 40;
 for idxreal = 1:nreals
     U = U0;                     % 初始场
-    for idxscr = 1:1:n 
-        L_G = construct_Covariance_Laplacian(pts, r0scrn(idxscr), alpha);
-        % 特征分解
-        opts.issym = true;
-        [Psi, Sigma] = eigs(L_G, M_turb, 'smallestabs', opts);
-        % KL 生成相位屏
-        s_n = sqrt(diag(Sigma)) .* randn(M_turb,1);
+    for idxscr = 1:n 
+        % 湍流相位生成（修正后）
+        if idxscr == 1 || r0scrn(idxscr) ~= r0scrn(idxscr-1)
+            L_G = construct_Covariance_Laplacian(pts, r0scrn(idxscr), alpha);
+            [Psi, Sigma] = eigs(L_G, M_turb, 'largestabs');
+        end
+        s_n = sqrt(diag(Sigma)/2) .* (randn(M_turb,1) + 1i*randn(M_turb,1));
         S = Psi * s_n;
-        % 分裂步进——前半步衍射
-        U = propagate_HalfStep(U, Phi, Lambda, dz, k);
-        % 叠加湍流相位
+
+        % 应用湍流相位
         U = U .* exp(1i * S);
-        % 分裂步进——后半步衍射
-        U = propagate_HalfStep(U, Phi, Lambda, dz, k);
-    end 
+
+        % 整步传播
+        U = propagate_FullStep(U, Phi, Lambda, dz, k);
+
+        % 自适应网格更新（每2步）
+        if mod(idxscr,2) == 0
+            [pts, TR] = adaptive_remeshing(pts, U, 30, 1, -30); % θ_max=30°, K=-30dB
+            L_C = cotangent_Graph_Laplacian(pts, TR);
+            [Phi, Lambda] = eigs(L_C, size(pts,1), 'smallestabs');
+        end
+    end
 end 
 
 %% 可视化
