@@ -15,7 +15,11 @@ function L_G = construct_Covariance_Laplacian(pts, rc, alpha)
 
     % 3) 构造协方差权重矩阵 WΓ
     %    Γs(r_i,r_j) = (|r_i-r_j| / rc)^alpha
-    W = (Dmat / rc) .^ alpha;
+    W = exp( - (Dmat ./ rc) .^ alpha );   % r 越大，W 越小
+    scale = trace(W)/N;
+    if scale > 0
+        W = W ./ scale;
+    end
     % 对角元素置零（自相关项不参与）
     W(1:N+1:end) = 0;
 
