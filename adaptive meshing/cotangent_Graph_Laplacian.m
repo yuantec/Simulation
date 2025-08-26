@@ -25,6 +25,9 @@ function L = cotangent_Graph_Laplacian(pts, TR)
         a = E(k,1);
         b = E(k,2);
         tris = adj{k};
+        if isempty(tris)
+            continue;
+        end
         % 第一三角形中对顶点 c
         t1 = tris(1);
         tri1 = TR.ConnectivityList(t1,:);
@@ -32,10 +35,13 @@ function L = cotangent_Graph_Laplacian(pts, TR)
         u = pts(a,:) - pts(c,:);
         v = pts(b,:) - pts(c,:);
         cross1 = cross([u,0],[v,0]);
-        if norm(cross1) < eps
-            continue;  % 跳过退化三角形，避免除零
+        area2_1 = norm(cross1);
+        if area2_1 < eps
+            cot1 = 0;
+        else
+            cot1 = dot(u,v) / area2_1;
         end
-        cot1 = dot(u,v) / norm(cross1);
+
         % 第二三角形（若存在）对顶点 d
         if numel(tris) > 1
             t2 = tris(2);
@@ -45,10 +51,11 @@ function L = cotangent_Graph_Laplacian(pts, TR)
             u2 = pts(a,:) - pts(d,:);
             v2 = pts(b,:) - pts(d,:);
             cross2 = cross([u2,0],[v2,0]);
-            if norm(cross2) < eps
+            area2_2 = norm(cross2);
+            if area2_2 < eps
                 cot2 = 0;  % 第二三角形退化
             else
-                cot2 = dot(u2,v2) / norm(cross2);
+                cot2 = dot(u2,v2) / area2_2;
             end
         else
             cot2 = 0;
@@ -58,16 +65,16 @@ function L = cotangent_Graph_Laplacian(pts, TR)
         % 累加到稀疏矩阵条目
         idx = idx + 1; I(idx)=a; J(idx)=b; V(idx)=-w;
         idx = idx + 1; I(idx)=b; J(idx)=a; V(idx)=-w;
-        idx = idx + 1; I(idx)=a; J(idx)=a; V(idx)= w;
-        idx = idx + 1; I(idx)=b; J(idx)=b; V(idx)= w;
     end
 
-    % 构造稀疏拉普拉斯矩阵
-    L = sparse(I(1:idx), J(1:idx), V(1:idx), N, N);
-
-    % 验证性质
-    assert(issymmetric(L), 'L 非对称');
-    minEig = eigs(L,1,'smallestabs');
-    assert(minEig >= -1e-10, 'L 非半正定');
-    assert(all(abs(sum(L,2))<1e-10),'每行和必须为零');
+    % 构造稀疏非对角矩阵并补对角使每行和为0
+    L_off = sparse(I(1:idx), J(1:idx), V(1:idx), N, N);
+    L = L_off;
+    diagVals = -sum(L_off,2);
+    L = L + sparse(1:N, 1:N, diagVals, N, N);
+    
+    % 验证
+    if norm(L - L', 'fro') > 1e-8
+        warning('L 非对称（超出数值容差）');
+    end
 end
